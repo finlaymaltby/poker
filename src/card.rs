@@ -1,4 +1,4 @@
-use std::{fmt::{Display, Formatter}, sync::LazyLock};
+use std::{fmt::{Display, Formatter}};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum Rank {
@@ -150,8 +150,12 @@ pub struct Card {
 }
 
 impl Card {
+    pub fn new(rank: Rank, suit: Suit) -> Self {
+        Card { rank, suit }
+    }
+
     /// Deck of cards, ordered by rank then suit
-    const DECK: LazyLock<Vec<Card>> = LazyLock::new(|| {
+    pub fn get_deck() -> Vec<Card> {
         let mut cards = Vec::new();
         for rank in Rank::ALL_RANKS {
             for suit in Suit::ALL_SUITS {
@@ -162,14 +166,6 @@ impl Card {
             }
         }
         cards
-    });
-
-    pub fn new(rank: Rank, suit: Suit) -> Self {
-        Card { rank, suit }
-    }
-
-    pub fn get_deck() -> Vec<Card> {
-        (*Self::DECK).clone()
     }
 }
 
