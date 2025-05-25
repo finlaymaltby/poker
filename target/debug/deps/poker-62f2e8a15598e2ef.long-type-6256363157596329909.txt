@@ -1,0 +1,1 @@
+__std_iter::adapters::chain::Chain<vec::into_iter::IntoIter<card::Card>, (card::Card, card::Card)>

@@ -1,0 +1,1 @@
+Copied<__std_iter::adapters::take::Take<Skip<Cycle<Rev<core::slice::iter::Iter<'_, card::Rank>>>>>>

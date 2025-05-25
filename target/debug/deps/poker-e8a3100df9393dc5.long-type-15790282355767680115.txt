@@ -1,0 +1,1 @@
+Copied<itertools::combinations::CombinationsGeneric<Rev<std::slice::Iter<'_, card::Rank>>, Vec<usize>>>
