@@ -1,10 +1,10 @@
 use crate::card::*;
-use std::{collections::{hash_map::Entry, HashMap}, fmt::Display, hash::{Hash, Hasher}, ops::{Add, AddAssign, Sub, SubAssign}, sync::LazyLock};
+use std::{collections::{hash_map::Entry, HashMap}, fmt::Display, hash::{Hash, Hasher}, ops::{BitOr, BitOrAssign}};
 use itertools::Itertools;
 
 
 /// Slightly goofy bit representation of hand
-/// Engineered so (hand1 = hand2) <=> (score(hand1) <=> score(hand2))
+/// Engineered so (hand1 = hand2) <=> (score(hand1) <=> score(hand2)) [if there are 5 cards in the hand]
 /// Low 39 bits for ranks:
 /// - count the number of occurences of each rank (0-4)
 /// - 3 bits per rank * 13 ranks = 39 bits
@@ -23,7 +23,6 @@ impl Hand {
     const SUIT_OFFSET: u64 = 50;
 
     pub fn new(cards: &Vec<Card>) -> Hand {
-        
         let mut val = 0;
         let mut suit_counts: [usize; 4] = [0; 4];
         for card in cards {
@@ -43,10 +42,15 @@ impl Hand {
         Hand(val)
     }
 
-    pub fn from_n_rank(rank: Rank, n: u64) -> Hand {
-        debug_assert!(n <= 4);
-        Hand(n << (usize::from(rank) * 3))
-    }
+    /// Get all combinations of n cards, best sorted first
+    pub fn get_hand_combos(n: usize) -> Vec<Hand> {
+        Card::get_deck()
+            .into_iter()
+            .rev()
+            .combinations(n)
+            .map(|combo| Hand::new(&combo))
+            .collect()
+    } 
 
     pub fn from_straight_flush(high_rank: Rank) -> Hand {
         let mut hand = Hand::EMPTY;
@@ -83,17 +87,17 @@ impl Hand {
         ((0b111 << (usize::from(rank) * 3)) & self.0) != 0
     }
 
-    pub fn add_rank(&mut self, rank: Rank) {
+    fn add_rank(&mut self, rank: Rank) {
         debug_assert!(self.count_rank(rank) < 4);
         self.0 += 1 << (usize::from(rank) * 3);
     }
 
-    pub fn remove_rank(&mut self, rank: Rank) {
+    fn take_rank(&mut self, rank: Rank) {
         debug_assert!(self.contains_rank(rank));
         self.0 -= 1 << (usize::from(rank) * 3);
     }
 
-    pub fn add_n_rank(&mut self, rank: Rank, n: u64) {
+    fn add_n_rank(&mut self, rank: Rank, n: u64) {
         debug_assert!(self.count_rank(rank) + n <= 4);
         self.0 += n << (usize::from(rank) * 3)
     }
@@ -106,19 +110,9 @@ impl Hand {
         self.0 & (1 << 63) != 0
     }
 
-    pub fn is_in_flush(self, rank: Rank) -> bool {
+    fn is_in_flush(self, rank: Rank) -> bool {
         (self.0 & (1 << (usize::from(rank) as u64 + Hand::SUIT_OFFSET))) != 0 
     }
-
-    /// Get all combinations of n cards, best sorted first
-    fn get_hand_combos(n: usize) -> Vec<Hand> {
-        Card::get_deck()
-            .into_iter()
-            .rev()
-            .combinations(n)
-            .map(|combo| Hand::new(&combo))
-            .collect()
-    } 
 
     fn from_rank_as_flush(rank: Rank) -> Hand {
         let mut hand = Hand::EMPTY;
@@ -128,15 +122,19 @@ impl Hand {
         return hand;
     }
 
+    fn from_n_rank(rank: Rank, n: u64) -> Hand {
+        debug_assert!(n <= 4);
+        Hand(n << (usize::from(rank) * 3))
+    }
     /// Get all combinations of n ranks as flush
-    pub fn flush_combos() -> Vec<Hand> {
+    fn flush_combos() -> Vec<Hand> {
         Rank::ALL_RANKS
             .iter()
             .map(|&rank| Hand::from_rank_as_flush(rank))
             .rev()
             .combinations(5)
             .map(|combo| combo.into_iter().fold(Hand::EMPTY, |acc, hand| {
-                acc + hand
+                acc | hand
             }))
             .collect()
     }
@@ -149,31 +147,17 @@ impl Hash for Hand {
     }
 }
 
-impl Add for Hand {
+impl BitOr for Hand {
     type Output = Hand;
 
-    fn add(self, other: Hand) -> Hand {
+    fn bitor(self, other: Hand) -> Hand {
         Hand(self.0 | other.0)
     }
 }
 
-impl AddAssign for Hand {
-    fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs;
-    }
-}
-
-impl Sub for Hand {
-    type Output = Hand;
-
-    fn sub(self, other: Hand) -> Hand {
-        Hand(self.0 & (!other.0))
-    }
-}
-
-impl SubAssign for Hand {
-    fn sub_assign(&mut self, rhs: Self) {
-        *self = *self - rhs;
+impl BitOrAssign for Hand {
+    fn bitor_assign(&mut self, rhs: Self) {
+        *self = *self | rhs;
     }
 }
 
@@ -216,7 +200,7 @@ fn score_n_of_a_kind(scores: &mut HashMap<Hand, u64>, offset: u64, n: u64) -> u6
                 continue;
             }
             let mut hand = Hand::from_n_rank(*set_rank, n as u64);
-            hand += kickers;
+            hand |= kickers;
 
             if let Entry::Vacant(v) = scores.entry(hand) {
                 v.insert(score);
@@ -287,7 +271,7 @@ fn score_two_pair(scores: &mut HashMap<Hand, u64>, offset: u64) -> u64 {
                     v.insert(score);
                     score += 1;
                 }
-                hand.remove_rank(*kicker);
+                hand.take_rank(*kicker);
             }
         }
     }
@@ -342,7 +326,7 @@ mod tests {
             let ranks: Vec<Rank> = Rank::ALL_RANKS.iter().rev().cycle().skip(usize::from(Rank::Ace) - high_rank).take(5).copied().collect();
             let mut hand2 = Hand::EMPTY;
             for rank in ranks {
-                hand2 += Hand::from_rank_as_flush(rank);
+                hand2 |= Hand::from_rank_as_flush(rank);
             }
             assert_eq!(hand2, hand1);
         }
@@ -356,7 +340,7 @@ mod tests {
                 for rank in Rank::ALL_RANKS {
                     if hand.is_in_flush(rank) {
                         assert!(hand.count_rank(rank) > 0);
-                        hand2 += Hand::from_rank_as_flush(rank);
+                        hand2 |= Hand::from_rank_as_flush(rank);
                         hand2.add_n_rank(rank, hand.count_rank(rank)- 1);
                     } else {
                         hand2.add_n_rank(rank, hand.count_rank(rank));
@@ -379,7 +363,7 @@ mod tests {
             for rank in Rank::ALL_RANKS {
                 if !hand2.contains_rank(rank) {
                     hand2.add_rank(rank);
-                    hand2.remove_rank(rank);
+                    hand2.take_rank(rank);
                     assert_eq!(hand, hand2);
                 }         
             }

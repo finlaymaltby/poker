@@ -93,6 +93,8 @@ fn eval_hand_monte_carlo(pair: &(Card, Card), n: usize) -> (usize, usize) {
 }
 
 fn main() {
+    (*SCORES).get(&Hand::EMPTY);
+    
     let community = vec![Card::new(Rank::Ace, Suit::Hearts), 
                                         Card::new(Rank::King, Suit::Hearts), 
                                         Card::new(Rank::Four, Suit::Spades)];
