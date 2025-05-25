@@ -1,1 +1,0 @@
-Map<itertools::combinations::CombinationsGeneric<Rev<Map<std::slice::Iter<'_, card::Rank>, {closure@src/hand.rs:103:18: 103:25}>>, Vec<usize>>, {closure@src/hand.rs:106:18: 106:25}>
